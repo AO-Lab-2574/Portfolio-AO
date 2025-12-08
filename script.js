@@ -232,7 +232,7 @@ function displayProjects(projects) {
         // 使用技術を取得
         const gijutsu = project['使用技術'] || project['開発言語・ツール・データベース/フレームワーク'] || project['技術'] || '';
         const techArray = gijutsu
-            .split(/[\n,、，]/)
+            .split(/[\n,、،]/)
             .map(t => t.trim())
             .filter(t => t && t !== '-');
 
@@ -301,4 +301,14 @@ function escapeHtml(text) {
 }
 
 // ページ読み込み時にデータを取得
-window.addEventListener('DOMContentLoaded', loadProjects);
+window.addEventListener('DOMContentLoaded', () => {
+    loadProjects();
+
+    // 名刺のフリップアニメーション
+    const cardFlipContainer = document.getElementById('cardFlipContainer');
+    if (cardFlipContainer) {
+        cardFlipContainer.addEventListener('click', () => {
+            cardFlipContainer.classList.toggle('flipped');
+        });
+    }
+});

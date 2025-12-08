@@ -22,8 +22,21 @@
             <!-- 名刺セクション -->
             <div class="business-card">
                 <h2>📇 名刺</h2>
-                <img src="images/business-card.jpg" alt="名刺"
-                    style="max-width: 100%; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                <p style="font-size: 14px; color: #999; margin-bottom: 15px;">クリックして裏面を表示</p>
+                <div class="card-flip-container" id="cardFlipContainer">
+                    <div class="card-inner">
+                        <!-- 表面 -->
+                        <div class="card-front">
+                            <img src="images/business-card.jpg" alt="名刺（表面）"
+                                style="max-width: 100%; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        </div>
+                        <!-- 裏面 -->
+                        <div class="card-back">
+                            <img src="images/business-card-back.jpg" alt="名刺（裏面）"
+                                style="max-width: 100%; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- プロフィール -->

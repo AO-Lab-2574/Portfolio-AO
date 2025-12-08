@@ -52,6 +52,41 @@ body {
     margin: 5px 0;
 }
 
+/* カードフリップアニメーション */
+.card-flip-container {
+    perspective: 1000px;
+    cursor: pointer;
+    margin-top: 15px;
+}
+
+.card-inner {
+    position: relative;
+    width: 100%;
+    transition: transform 0.8s;
+    transform-style: preserve-3d;
+}
+
+.card-flip-container.flipped .card-inner {
+    transform: rotateY(180deg);
+}
+
+.card-front,
+.card-back {
+    width: 100%;
+    backface-visibility: hidden;
+}
+
+.card-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: rotateY(180deg);
+}
+
+.card-flip-container:hover {
+    opacity: 0.95;
+}
+
 .card-placeholder {
     background: #f0f0f0;
     border: 2px dashed #ccc;
