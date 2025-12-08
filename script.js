@@ -247,10 +247,10 @@ function displayProjects(projects) {
             <h3>${escapeHtml(ankenMei)}</h3>
             <div class="project-meta">
                 <span>📋 項番: ${escapeHtml(kouban)}</span>
-                <span>📅 ${escapeHtml(period)}</span>
-                ${memberCount !== '-' ? `<span>👥 ${escapeHtml(memberCount)}</span>` : ''}
-                <span>🏢 ${escapeHtml(gyoushu)}</span>
-                ${yakuwari !== '-' ? `<span>💼 ${escapeHtml(yakuwari)}</span>` : ''}
+                <span>📅 参画期間: ${escapeHtml(period)}</span>
+                ${memberCount !== '-' ? `<span>👥 人数: ${escapeHtml(memberCount)}</span>` : ''}
+                <span>🏢 業種・業態: ${escapeHtml(gyoushu)}</span>
+                ${yakuwari !== '-' ? `<span>💼 役割: ${escapeHtml(yakuwari)}</span>` : ''}
             </div>
 
             ${techArray.length > 0 ? `
