@@ -41,27 +41,35 @@ function escapeHtml(text) {
 function applyProfileData(rows) {
     if (rows.length < 2) return;
 
-    // 1行目がヘッダー、2行目以降がデータ
-    // M列(index 11)=強み, N列(index 12)=保有資格
-    const dataRow = rows[1]; // 2行目（最初のデータ行）
+    // ヘッダー行からM・N列のインデックスを特定
+    const headers = rows[0];
+    const strengthIdx = headers.findIndex(h => h && h.includes('略歴'));
+    const qualIdx = headers.findIndex(h => h && h.includes('保有資格'));
 
-    const strengths = (dataRow[11] || '').trim();
-    const qualifications = (dataRow[12] || '').trim();
+    if (strengthIdx === -1 && qualIdx === -1) return;
+
+    const dataRow = rows[1];
 
     // 強み
+    const strengths = strengthIdx >= 0 ? (dataRow[strengthIdx] || '').trim() : '';
     if (strengths) {
         const ul = document.getElementById('strengths-list');
         if (ul) {
-            const items = strengths.split('\n').map(s => s.replace(/^・/, '').trim()).filter(Boolean);
+            const items = strengths.split('\n')
+                .map(s => s.replace(/^・/, '').trim())
+                .filter(Boolean);
             ul.innerHTML = items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
         }
     }
 
     // 保有資格
+    const qualifications = qualIdx >= 0 ? (dataRow[qualIdx] || '').trim() : '';
     if (qualifications) {
         const ul = document.getElementById('qualifications-list');
         if (ul) {
-            const items = qualifications.split(',').map(s => s.trim()).filter(Boolean);
+            const items = qualifications.split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
             ul.innerHTML = items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
         }
     }
