@@ -39,48 +39,32 @@ function escapeHtml(text) {
 
 // ========== プロフィール・スキルをM・N列から取得して反映 ==========
 function applyProfileData(rows) {
-    // M列=index 11, N列=index 12（A〜K列が0〜10のため）
-    const map = {};
-    rows.forEach(row => {
-        const key = (row[11] || '').trim();
-        const val = (row[12] || '').trim();
-        if (key && key !== 'profile_key') map[key] = val;
-    });
+    if (rows.length < 2) return;
+
+    // 1行目がヘッダー、2行目以降がデータ
+    // M列(index 11)=強み, N列(index 12)=保有資格
+    const dataRow = rows[1]; // 2行目（最初のデータ行）
+
+    const strengths = (dataRow[11] || '').trim();
+    const qualifications = (dataRow[12] || '').trim();
 
     // 強み
-    if (map['強み']) {
+    if (strengths) {
         const ul = document.getElementById('strengths-list');
         if (ul) {
-            const items = map['強み'].split('\n').map(s => s.replace(/^・/, '').trim()).filter(Boolean);
+            const items = strengths.split('\n').map(s => s.replace(/^・/, '').trim()).filter(Boolean);
             ul.innerHTML = items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
         }
     }
 
     // 保有資格
-    if (map['保有資格']) {
+    if (qualifications) {
         const ul = document.getElementById('qualifications-list');
         if (ul) {
-            const items = map['保有資格'].split(',').map(s => s.trim()).filter(Boolean);
+            const items = qualifications.split(',').map(s => s.trim()).filter(Boolean);
             ul.innerHTML = items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
         }
     }
-
-    // スキル各カテゴリ
-    const skillMap = [
-        { key: 'スキル_言語',    id: 'skills-lang' },
-        { key: 'スキル_ツール',  id: 'skills-tools' },
-        { key: 'スキル_DB',      id: 'skills-db' },
-        { key: 'スキル_クラウド',id: 'skills-cloud' },
-    ];
-    skillMap.forEach(({ key, id }) => {
-        if (map[key]) {
-            const container = document.getElementById(id);
-            if (container) {
-                const items = map[key].split(',').map(s => s.trim()).filter(Boolean);
-                container.innerHTML = items.map(i => `<div class="skill-tag">${escapeHtml(i)}</div>`).join('');
-            }
-        }
-    });
 }
 
 // ========== プロジェクト表示 ==========
