@@ -1,284 +1,147 @@
-// スプレッドシートの元のID
-const ORIGINAL_SPREADSHEET_ID = '1iwP323oeDeCseDJpslj07ulrQT77lSF6';
-
-// スプレッドシートの公開ID（「ウェブに公開」で取得したID）
 const PUBLIC_SPREADSHEET_ID = '2PACX-1vSp9rwwRm7ecv2VH75gmK5A2WMEjt92Mg4bUQj94_4jJa1pIottYecfSZWhww6Gzw';
+const SHEET_ID = '1150458993';       // portfolio用シートのgid
+const DISPLAY_START = null;
+const DISPLAY_END = null;
 
-// 新しいシンプルなシートのID
-const SHEET_ID = '1799283417';
-
-// 表示する項番の範囲を指定（nullの場合は全て表示）
-const DISPLAY_START = null; // 開始項番（例: 1）
-const DISPLAY_END = null;   // 終了項番（例: 2）
-
-// Google Sheets APIのエンドポイント（公開スプレッドシート用）
 const API_URL = `https://docs.google.com/spreadsheets/d/e/${PUBLIC_SPREADSHEET_ID}/pub?output=csv&gid=${SHEET_ID}`;
 
-/**
- * プロジェクトデータを読み込む
- */
-async function loadProjects() {
-    try {
-        console.log('スプレッドシートを読み込み中...', API_URL);
-
-        const response = await fetch(API_URL);
-
-        if (!response.ok) {
-            throw new Error(`HTTP エラー: ${response.status}`);
-        }
-
-        const csvText = await response.text();
-        console.log('CSV取得成功。データ長:', csvText.length);
-        console.log('CSVの最初の500文字:', csvText.substring(0, 500));
-
-        // CSVをパース
-        const projects = parseCSV(csvText);
-        console.log('パース完了。プロジェクト数:', projects.length);
-
-        // 項番でフィルタリング
-        const filteredProjects = filterByKouban(projects);
-        console.log('フィルタリング後のプロジェクト数:', filteredProjects.length);
-
-        // プロジェクトを表示
-        displayProjects(filteredProjects);
-
-        // ローディング表示を非表示
-        document.getElementById('loading').style.display = 'none';
-    } catch (error) {
-        console.error('データの読み込みエラー:', error);
-        document.getElementById('loading').innerHTML = `
-            <p style="color: red;">データの読み込みに失敗しました。</p>
-            <p style="color: #666; font-size: 14px; margin-top: 10px;">
-                <strong>以下を確認してください：</strong><br>
-                1. スプレッドシートが「ウェブに公開」されているか<br>
-                2. 正しいシート（portfolio用）を読み込んでいるか<br>
-                3. ブラウザのコンソール（F12）でエラー詳細を確認<br><br>
-                エラー詳細: ${error.message}
-            </p>
-        `;
-    }
-}
-
-/**
- * CSVテキストをパースしてオブジェクト配列に変換
- */
-function parseCSV(csv) {
-    // CSVを行単位でパース（ダブルクォート内の改行を考慮）
-    const rows = parseCSVRows(csv);
-
-    if (rows.length === 0) {
-        console.error('CSVデータが空です');
-        return [];
-    }
-
-    // ヘッダー行を探す（「項番」を含む行）
-    let headerIndex = -1;
-    let headers = [];
-
-    for (let i = 0; i < Math.min(rows.length, 10); i++) {
-        const testHeaders = rows[i];
-
-        // デバッグ: 各行の最初の10列を表示
-        console.log(`${i}行目:`, testHeaders.slice(0, 10).map(h => h ? h.substring(0, 20) : '(空)'));
-
-        // 「項番」を含む行をヘッダーとみなす
-        const hasKouban = testHeaders.some(h => h && (h.includes('項番') || h === 'No' || h === 'NO'));
-        const hasAnkenMei = testHeaders.some(h => h && (h.includes('案件名') || h.includes('プロジェクト')));
-
-        if (hasKouban || hasAnkenMei) {
-            headerIndex = i;
-            headers = testHeaders;
-            console.log(`✓ ヘッダー行を発見: ${i}行目（Excel行: ${i + 1}）`, headers.filter(h => h));
-            break;
-        }
-    }
-
-    if (headerIndex === -1) {
-        console.error('❌ ヘッダー行が見つかりませんでした');
-        console.log('💡 先頭10行を確認してください');
-        return [];
-    }
-
-    const projects = [];
-
-    // ヘッダーの次の行からデータを読み込む
-    let projectCount = 0;
-    for (let i = headerIndex + 1; i < rows.length; i++) {
-        const values = rows[i];
-
-        // 空行をスキップ
-        if (values.every(v => !v || !v.trim())) {
-            continue;
-        }
-
-        const project = {};
-
-        headers.forEach((header, index) => {
-            if (header) { // ヘッダーが空でない場合のみ
-                project[header] = values[index] || '';
-            }
-        });
-
-        // プロジェクト名、案件名のいずれかがある行を追加
-        const kouban = project['項番'] || project['No'] || project['NO'] || '';
-        const ankenMei = project['案件名'] || project['案件名称'] || project['プロジェクト名'] || '';
-
-        // 項番または案件名がある行のみ追加
-        if ((kouban && kouban.trim()) || (ankenMei && ankenMei.trim())) {
-            projectCount++;
-            project['_行番号'] = i + 1; // Excel行番号
-            project['_データ番号'] = projectCount;
-            projects.push(project);
-            console.log(`✓ プロジェクト${projectCount}を追加 (Excel ${i + 1}行目): 項番=${kouban}, 案件名=${ankenMei.substring(0, 30)}`);
-        }
-    }
-
-    console.log(`📊 合計 ${projectCount} 件のプロジェクトデータを読み込みました`);
-    return projects;
-}
-
-/**
- * CSVを行単位でパース（ダブルクォート内の改行を保持）
- */
+// ========== CSVパース ==========
 function parseCSVRows(csv) {
     const rows = [];
-    let currentRow = [];
-    let currentCell = '';
-    let inQuotes = false;
-
+    let currentRow = [], currentCell = '', inQuotes = false;
     for (let i = 0; i < csv.length; i++) {
-        const char = csv[i];
-        const nextChar = csv[i + 1];
-
+        const char = csv[i], nextChar = csv[i + 1];
         if (char === '"') {
-            if (inQuotes && nextChar === '"') {
-                // エスケープされたダブルクォート
-                currentCell += '"';
-                i++;
-            } else {
-                // クォートの開始/終了
-                inQuotes = !inQuotes;
-            }
+            if (inQuotes && nextChar === '"') { currentCell += '"'; i++; }
+            else inQuotes = !inQuotes;
         } else if (char === ',' && !inQuotes) {
-            // セルの区切り
+            currentRow.push(currentCell.trim()); currentCell = '';
+        } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !inQuotes) {
             currentRow.push(currentCell.trim());
-            currentCell = '';
-        } else if (char === '\n' && !inQuotes) {
-            // 行の区切り（クォート外の改行のみ）
-            currentRow.push(currentCell.trim());
-            if (currentRow.some(cell => cell !== '')) {
-                rows.push(currentRow);
-            }
-            currentRow = [];
-            currentCell = '';
-        } else if (char === '\r' && nextChar === '\n' && !inQuotes) {
-            // Windows形式の改行（CRLF）
-            currentRow.push(currentCell.trim());
-            if (currentRow.some(cell => cell !== '')) {
-                rows.push(currentRow);
-            }
-            currentRow = [];
-            currentCell = '';
-            i++; // \nをスキップ
+            if (currentRow.some(c => c !== '')) rows.push(currentRow);
+            currentRow = []; currentCell = '';
+            if (char === '\r') i++;
         } else {
             currentCell += char;
         }
     }
-
-    // 最後のセルと行を追加
     if (currentCell || currentRow.length > 0) {
         currentRow.push(currentCell.trim());
-        if (currentRow.some(cell => cell !== '')) {
-            rows.push(currentRow);
-        }
+        if (currentRow.some(c => c !== '')) rows.push(currentRow);
     }
-
     return rows;
 }
 
-/**
- * 項番で絞り込み
- */
-function filterByKouban(projects) {
-    if (DISPLAY_START === null && DISPLAY_END === null) {
-        return projects; // 全て表示
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text ? String(text).replace(/[&<>"']/g, m => map[m]) : '';
+}
+
+// ========== プロフィール・スキルをM・N列から取得して反映 ==========
+function applyProfileData(rows) {
+    // M列=index 11, N列=index 12（A〜K列が0〜10のため）
+    const map = {};
+    rows.forEach(row => {
+        const key = (row[11] || '').trim();
+        const val = (row[12] || '').trim();
+        if (key && key !== 'profile_key') map[key] = val;
+    });
+
+    // 強み
+    if (map['強み']) {
+        const ul = document.getElementById('strengths-list');
+        if (ul) {
+            const items = map['強み'].split('\n').map(s => s.replace(/^・/, '').trim()).filter(Boolean);
+            ul.innerHTML = items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
+        }
     }
 
-    return projects.filter((project, index) => {
-        // 項番で絞り込み
-        const koubanStr = project['項番'] || project['No'] || project['NO'] || '';
-        const dataNumber = project['_データ番号'] || (index + 1);
-
-        if (!koubanStr) {
-            // 項番がない場合はデータ番号で判定
-            const matchStart = DISPLAY_START === null || dataNumber >= DISPLAY_START;
-            const matchEnd = DISPLAY_END === null || dataNumber <= DISPLAY_END;
-            return matchStart && matchEnd;
+    // 保有資格
+    if (map['保有資格']) {
+        const ul = document.getElementById('qualifications-list');
+        if (ul) {
+            const items = map['保有資格'].split(',').map(s => s.trim()).filter(Boolean);
+            ul.innerHTML = items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
         }
+    }
 
-        const kouban = parseInt(koubanStr);
-
-        if (isNaN(kouban)) return true;
-
-        const matchStart = DISPLAY_START === null || kouban >= DISPLAY_START;
-        const matchEnd = DISPLAY_END === null || kouban <= DISPLAY_END;
-
-        const matched = matchStart && matchEnd;
-
-        if (DISPLAY_START !== null || DISPLAY_END !== null) {
-            console.log(`項番${kouban}: ${matched ? '✓表示' : '×非表示'}`);
+    // スキル各カテゴリ
+    const skillMap = [
+        { key: 'スキル_言語',    id: 'skills-lang' },
+        { key: 'スキル_ツール',  id: 'skills-tools' },
+        { key: 'スキル_DB',      id: 'skills-db' },
+        { key: 'スキル_クラウド',id: 'skills-cloud' },
+    ];
+    skillMap.forEach(({ key, id }) => {
+        if (map[key]) {
+            const container = document.getElementById(id);
+            if (container) {
+                const items = map[key].split(',').map(s => s.trim()).filter(Boolean);
+                container.innerHTML = items.map(i => `<div class="skill-tag">${escapeHtml(i)}</div>`).join('');
+            }
         }
-
-        return matched;
     });
 }
 
-/**
- * プロジェクトをHTML表示
- */
+// ========== プロジェクト表示 ==========
+function parseCSV(csv) {
+    const rows = parseCSVRows(csv);
+    if (rows.length === 0) return [];
+    let headerIndex = -1, headers = [];
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const r = rows[i];
+        if (r.some(h => h && (h.includes('項番') || h === 'No')) || r.some(h => h && h.includes('案件名'))) {
+            headerIndex = i; headers = r; break;
+        }
+    }
+    if (headerIndex === -1) return [];
+    const projects = [];
+    let count = 0;
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+        const values = rows[i];
+        if (values.every(v => !v || !v.trim())) continue;
+        const project = {};
+        headers.forEach((h, idx) => { if (h) project[h] = values[idx] || ''; });
+        const kouban = project['項番'] || project['No'] || '';
+        const ankenMei = project['案件名'] || project['案件名称'] || '';
+        if ((kouban && kouban.trim()) || (ankenMei && ankenMei.trim())) {
+            project['_データ番号'] = ++count;
+            projects.push(project);
+        }
+    }
+    return projects;
+}
+
+function filterByKouban(projects) {
+    if (DISPLAY_START === null && DISPLAY_END === null) return projects;
+    return projects.filter((p, i) => {
+        const n = parseInt(p['項番'] || p['No'] || '') || p['_データ番号'] || (i + 1);
+        return (DISPLAY_START === null || n >= DISPLAY_START) && (DISPLAY_END === null || n <= DISPLAY_END);
+    });
+}
+
 function displayProjects(projects) {
     const container = document.getElementById('projects-container');
     container.innerHTML = '';
-
     if (projects.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">表示するプロジェクトデータがありません。</p>';
+        container.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">表示するプロジェクトデータがありません。</p>';
         return;
     }
-
     projects.forEach((project, index) => {
-        const projectDiv = document.createElement('div');
-        projectDiv.className = 'project';
-
-        // 各フィールドを取得
-        const kouban = project['項番'] || project['No'] || project['NO'] || (index + 1);
-        const ankenMei = project['案件名'] || project['案件名称'] || project['プロジェクト名'] || '案件名なし';
-        const period = project['案件期間'] || project['期間'] || project['作業期間'] || '期間未定';
+        const div = document.createElement('div');
+        div.className = 'project';
+        const kouban    = project['項番'] || project['No'] || (index + 1);
+        const ankenMei  = project['案件名'] || project['案件名称'] || '案件名なし';
+        const period    = project['案件期間'] || project['期間'] || '期間未定';
         const memberCount = project['人数'] || '-';
-        const gyoushu = project['業種'] || project['業種・業態'] || '-';
-        const yakuwari = project['役割'] || project['担当分野'] || '-';
+        const gyoushu   = project['業種'] || project['業種・業態'] || '-';
+        const yakuwari  = project['役割'] || '-';
+        const gijutsu   = project['使用技術'] || '';
+        const techArray = gijutsu.split(/[\n,、]/).map(t => t.trim()).filter(t => t && t !== '-');
+        const workItems = (project['作業内容'] || '').split('\n').map(s => s.trim()).filter(s => s && s !== '-');
+        const phaseItems = (project['担当作業/フェーズ'] || '').split('\n').map(s => s.trim()).filter(s => s && s !== '-');
 
-        // 使用技術を取得
-        const gijutsu = project['使用技術'] || project['開発言語・ツール・データベース/フレームワーク'] || project['技術'] || '';
-        const techArray = gijutsu
-            .split(/[\n,、،]/)
-            .map(t => t.trim())
-            .filter(t => t && t !== '-');
-
-        // 作業内容を取得
-        const sagyou = project['作業内容'] || '';
-        const workItems = sagyou
-            .split(/\n/)
-            .map(item => item.trim())
-            .filter(item => item && item !== '-');
-
-        // 担当作業/フェーズ を取得
-        const phase = project['担当作業/フェーズ'] || project['担当フェーズ'] || project['フェーズ'] || '';
-        const phaseItems = phase
-            .split(/\n/)
-            .map(item => item.trim())
-            .filter(item => item && item !== '-');
-
-        projectDiv.innerHTML = `
+        div.innerHTML = `
             <h3>${escapeHtml(ankenMei)}</h3>
             <div class="project-meta">
                 <span>📋 項番: ${escapeHtml(kouban)}</span>
@@ -287,56 +150,37 @@ function displayProjects(projects) {
                 <span>🏢 業種・業態: ${escapeHtml(gyoushu)}</span>
                 ${yakuwari !== '-' ? `<span>💼 役割: ${escapeHtml(yakuwari)}</span>` : ''}
             </div>
-
-            ${techArray.length > 0 ? `
-                <h4 style="color: #667eea; margin-top: 20px; margin-bottom: 10px;">使用技術</h4>
-                <div class="tech-stack">
-                    ${techArray.map(tech => `<span class="tech-badge">${escapeHtml(tech)}</span>`).join('')}
-                </div>
-            ` : ''}
-
-            ${workItems.length > 0 ? `
-                <h4 style="color: #667eea; margin-top: 20px; margin-bottom: 10px;">作業内容</h4>
-                <ul>
-                    ${workItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
-                </ul>
-            ` : ''}
-
-            ${phaseItems.length > 0 ? `
-                <h4 style="color: #667eea; margin-top: 20px; margin-bottom: 10px;">担当作業 / フェーズ</h4>
-                <ul>
-                    ${phaseItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
-                </ul>
-            ` : ''}
+            ${techArray.length > 0 ? `<h4 style="color:#667eea;margin-top:20px;margin-bottom:10px;">使用技術</h4><div class="tech-stack">${techArray.map(t => `<span class="tech-badge">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+            ${workItems.length > 0 ? `<h4 style="color:#667eea;margin-top:20px;margin-bottom:10px;">作業内容</h4><ul>${workItems.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : ''}
+            ${phaseItems.length > 0 ? `<h4 style="color:#667eea;margin-top:20px;margin-bottom:10px;">担当作業 / フェーズ</h4><ul>${phaseItems.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : ''}
         `;
-
-        container.appendChild(projectDiv);
+        container.appendChild(div);
     });
 }
 
-/**
- * HTMLエスケープ処理
- */
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text ? String(text).replace(/[&<>"']/g, m => map[m]) : '';
+// ========== メイン ==========
+async function loadAll() {
+    try {
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error(`HTTP エラー: ${response.status}`);
+        const csvText = await response.text();
+        const rows = parseCSVRows(csvText);
+
+        // M・N列からプロフィール・スキルを反映
+        applyProfileData(rows);
+
+        // プロジェクト一覧を表示
+        const projects = parseCSV(csvText);
+        displayProjects(filterByKouban(projects));
+        document.getElementById('loading').style.display = 'none';
+    } catch (error) {
+        console.error('データ読み込みエラー:', error);
+        document.getElementById('loading').innerHTML = `<p style="color:red;">データの読み込みに失敗しました。<br>エラー: ${error.message}</p>`;
+    }
 }
 
-// ページ読み込み時にデータを取得
 window.addEventListener('DOMContentLoaded', () => {
-    loadProjects();
-
-    // 名刺のフリップアニメーション
-    const cardFlipContainer = document.getElementById('cardFlipContainer');
-    if (cardFlipContainer) {
-        cardFlipContainer.addEventListener('click', () => {
-            cardFlipContainer.classList.toggle('flipped');
-        });
-    }
+    loadAll();
+    const card = document.getElementById('cardFlipContainer');
+    if (card) card.addEventListener('click', () => card.classList.toggle('flipped'));
 });
